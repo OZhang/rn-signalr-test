@@ -9,7 +9,9 @@ import {
   Platform,
   StyleSheet,
   Text,
-  View
+  View,
+  TextInput,
+  TouchableHighlight
 } from 'react-native';
 import signalr from 'react-native-signalr';
 
@@ -19,30 +21,42 @@ const instructions = Platform.select({
   android: 'Double tap R on your keyboard to reload,\n' +
   'Shake or press menu button for dev menu',
 });
-
+// var proxy;
+// var connection;
+const signalrUrl = 'http://localhost:8888/';
 export default class App extends Component<{}> {
+  constructor(props) {
+    super(props);
+    this.state = {
+      message: "",
+      text: "",
+      proxy: null,
+      conn: null
+    };
+  }
   componentDidMount() {
     //This is the server under /example/server published on azure.
-    const connection = signalr.hubConnection('http://react-native-signalr20171012104248.azurewebsites.net');
+    connection = signalr.hubConnection(signalrUrl);
     connection.logging = true;
 
-    const proxy = connection.createHubProxy('chatHub');
+    var proxyconn = connection.createHubProxy('DeviceAdpterHub');
     //receives broadcast messages from a hub function, called "helloApp"
-    proxy.on('helloApp', (argOne, argTwo, argThree, argFour) => {
+    proxyconn.on('AddMessage', (argOne, argTwo, argThree, argFour) => {
       console.log('message-from-server', argOne, argTwo, argThree, argFour);
+      this.setState({
+        message: argTwo
+      });
       //Here I could response by calling something else on the server...
     });
 
     // atempt connection, and handle errors
     connection.start().done(() => {
       console.log('Now connected, connection ID=' + connection.id);
-
-      proxy.invoke('helloServer', 'Hello Server, how are you?')
-        .done((directResponse) => {
-          console.log('direct-response-from-server', directResponse);
-        }).fail(() => {
-          console.warn('Something went wrong when calling server, it might not be up and running?')
-        });
+      this.setState({
+        conn: connection,
+        proxy: proxyconn
+      })
+      this.sendMsg('Send', 'Hello Server, how are you?')
 
     }).fail(() => {
       console.log('Failed');
@@ -66,15 +80,34 @@ export default class App extends Component<{}> {
     });
   }
 
+  sendMsg(method, msg) {
+    this.state.proxy.invoke('Send', msg)
+      .done((directResponse) => {
+        console.log('direct-response-from-server', directResponse);
+      }).fail(() => {
+        console.warn('Something went wrong when calling server, it might not be up and running?')
+      });
+  }
+
+  _onPressButton() {
+    this.sendMsg('Send', this.state.text);
+  }
+
   render() {
     return (
       <View style={styles.container}>
         <Text style={styles.welcome}>
-          Welcome to React Native!
+          {this.state.message}
         </Text>
-        <Text style={styles.instructions}>
-          To get started, edit index.ios.js
-        </Text>
+        <TextInput
+          style={{ height: 40, width: 200, borderColor: 'gray', borderWidth: 1 }}
+          onChangeText={(text) => { this.setState({ text }) }}
+          value={this.state.text}
+        />
+        <TouchableHighlight onPress={this._onPressButton.bind(this)} 
+        style={{height:40, width:200, borderColor: 'blue', borderWidth: 1}}>
+          <Text>Send</Text>
+        </TouchableHighlight>
         <Text style={styles.instructions}>
           Press Cmd+R to reload,{'\n'}
           Cmd+D or shake for dev menu
@@ -92,7 +125,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5FCFF',
   },
   welcome: {
-    fontSize: 20,
+    fontSize: 40,
     textAlign: 'center',
     margin: 10,
   },
